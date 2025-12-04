@@ -67,7 +67,7 @@ const categories = [
       {
         id: "cat1_nom2",
         name: "el alma de la fiesta",
-        participants: ["p32", "p6", "13", "p19"]
+        participants: ["p32", "p6", "p13", "p19"] // corregido p13
       }
     ]
   },
@@ -78,21 +78,19 @@ const categories = [
       {
         id: "cat2_nom1",
         name: "el mejor lider",
-        participants: ["p14", "p8", "23", "p18"]
+        participants: ["p14", "p8", "p23", "p18"] // corregido p23
       },
       {
         id: "cat2_nom2",
         name: "el mas colaborador",
-        participants: ["p33", "p15", "17", "p32"]
+        participants: ["p33", "p15", "p17", "p32"] // corregido p17
       },
-       {
+      {
         id: "cat2_nom3",
         name: "El solucionador de problemas",
         participants: ["p36", "p15", "p33", "p18"]
       }
     ]
-
-    
   },
   {
     id: "cat3",
@@ -140,13 +138,11 @@ const categories = [
         name: "El más misterioso(nadie sabe que hace)",
         participants: ["p1", "p12", "p13", "p27"]
       },
-       {
-        id: "cat5_nom2",
-        name: "El que siempre tiene hambre)",
+      {
+        id: "cat5_nom3",
+        name: "El que siempre tiene hambre",
         participants: ["p28", "p20", "p11", "p22"]
       }
-
-      
     ]
   },
   {
@@ -173,8 +169,7 @@ const categories = [
         id: "cat7_nom1",
         name: "EL que mas disfruta el secret santa",
         participants: ["p3", "p29", "p4", "p16"]
-      },
-    
+      }
     ]
   },
   {
@@ -185,8 +180,7 @@ const categories = [
         id: "cat8_nom1",
         name: "El que nunca falta a las celebraciones",
         participants: ["p30", "p1", "p37", "p19"]
-      },
-  
+      }
     ]
   },
   {
@@ -217,12 +211,14 @@ const categories = [
       {
         id: "cat10_nom2",
         name: "El mejor compañero",
-        participants: ["p1", "p2", "p3", "p4","p5", "p6", "p7", "p8","p9", "p10", "p11", "p12","p13", "p14", "p15", "p16","p17", "p18", "p19", "p20","p21", "p22", "p23", "p24","p25", "p26", "p27", "p28", "p29", "p30", "p31", "p32", "33", "p34", "p35", "p36", "p37", "p38"]
+        participants: [
+          "p1", "p2", "p3", "p4","p5", "p6", "p7", "p8",
+          "p9", "p10", "p11", "p12","p13", "p14", "p15", "p16",
+          "p17", "p18", "p19", "p20","p21", "p22", "p23", "p24",
+          "p25", "p26", "p27", "p28", "p29", "p30", "p31", "p32",
+          "p33", "p34", "p35", "p36", "p37", "p38"
+        ] // corregido p33
       }
     ]
-  },
-  
+  }
 ];
-   
-
-
