@@ -4,13 +4,12 @@
   <meta charset="UTF-8" />
   <title>Votaciones en Vivo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- Tu hoja de estilos -->
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header>
-    <h1>Votaciones en Vivo</h1>
-    <p>40 participantes · 10 categorías · 20 nominaciones</p>
+    <h1></h1>
+    <p> </p>
   </header>
 
   <main>
@@ -18,9 +17,7 @@
     <aside id="categories">
       <h2>Categorías</h2>
       <div id="category-list"></div>
-      <button id="reset-all" class="danger">
-        Reiniciar TODOS los votos
-      </button>
+      <button id="reset-all" class="danger">Reiniciar TODOS los votos</button>
     </aside>
 
     <!-- CONTENIDO PRINCIPAL -->
@@ -37,7 +34,7 @@
       <div id="nominees-container"></div>
 
       <!-- PANEL DE RESUMEN GENERAL -->
-      <hr class="summary-separator" />
+      <hr class="summary-separator">
       <h3 id="summary-title">Resumen general (líder por nominación)</h3>
       <div id="summary-panel" class="summary-panel"></div>
     </section>
@@ -49,46 +46,52 @@
     </small>
   </footer>
 
-  <!-- =================================================== -->
-  <!--   FIREBASE (SDK COMPATIBLE CON HTML + JS PLANO)     -->
-  <!-- =================================================== -->
+  <!-- ============================= -->
+  <!--  FIREBASE (APP + DATABASE)    -->
+  <!-- ============================= -->
 
-  <!-- SDKs de Firebase en modo "compat" -->
+  <!-- SDKs en modo "compat", ideales para proyectos HTML+JS sin npm -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 
   <script>
-    // Configuración REAL de tu proyecto Firebase
+    // ⬇⬇⬇ COPIA DESDE FIREBASE Y PÉGALO AQUÍ ⬇⬇⬇
+    // Ve a: Configuración del proyecto → icono "</>" (tu app web)
+    // y copia el bloque "const firebaseConfig = { ... }" que te da Firebase.
+    // Luego AGREGA la línea databaseURL con el valor exacto que ves en
+    // Realtime Database (pestaña Data).
+
     const firebaseConfig = {
-      apiKey: "AIzaSyBDBOWAOSqoqojaI0XXf-tqi-TZljL7mxQ",
-      authDomain: "votacionesdai2k25-fe93b.firebaseapp.com",
-      databaseURL: "https://votacionesdai2k25-fe93b-default-rtdb.firebaseio.com",
-      projectId: "votacionesdai2k25-fe93b",
-      storageBucket: "votacionesdai2k25-fe93b.firebasestorage.app",
-      messagingSenderId: "208183663126",
-      appId: "1:208183663126:web:05323471dc484bd4d1f337",
-      measurementId: "G-1MY2Y8KZ6C"
+      apiKey: "TU_API_KEY_AQUI",
+      authDomain: "TU_PROYECTO.firebaseapp.com",
+      databaseURL: "https://TU_PROYECTO-default-rtdb.firebaseio.com",
+      projectId: "TU_PROYECTO",
+      storageBucket: "TU_PROYECTO.appspot.com",
+      messagingSenderId: "TU_SENDER_ID",
+      appId: "TU_APP_ID",
+      measurementId: "TU_MEASUREMENT_ID"
     };
 
-    // Inicializar Firebase (modo compat)
+    // ⬆⬆⬆ SOLO EDITA ESTE OBJETO CON TUS DATOS REALES ⬆⬆⬆
+
+    // Inicializar Firebase
     firebase.initializeApp(firebaseConfig);
 
     // Realtime Database
     const db = firebase.database();
 
-    // Rama donde se guardan todos los votos
-    // (esta variable la usa app.js)
+    // Rama donde se guardan todos los votos (la usan app.js y subscribeToVotes)
     const votesRef = db.ref("votes");
   </script>
 
-  <!-- ====================================== -->
-  <!--   SCRIPTS DE TU APLICACIÓN DE VOTOS    -->
-  <!-- ====================================== -->
+  <!-- ============================= -->
+  <!--  SCRIPTS DE LA APLICACIÓN     -->
+  <!-- ============================= -->
 
-  <!-- Nombres, fotos, categorías y nominaciones -->
+  <!-- Nombres, fotos y categorías -->
   <script src="data.js"></script>
 
-  <!-- Lógica de votos, render, resumen, etc. -->
+  <!-- Lógica de renderizado, votos, resumen, etc. -->
   <script src="app.js"></script>
 </body>
 </html>
