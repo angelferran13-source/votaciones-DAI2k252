@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <title>Votaciones en Vivo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Tu hoja de estilos -->
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -17,7 +18,9 @@
     <aside id="categories">
       <h2>Categorías</h2>
       <div id="category-list"></div>
-      <button id="reset-all" class="danger">Reiniciar TODOS los votos</button>
+      <button id="reset-all" class="danger">
+        Reiniciar TODOS los votos
+      </button>
     </aside>
 
     <!-- CONTENIDO PRINCIPAL -->
@@ -34,7 +37,7 @@
       <div id="nominees-container"></div>
 
       <!-- PANEL DE RESUMEN GENERAL -->
-      <hr class="summary-separator">
+      <hr class="summary-separator" />
       <h3 id="summary-title">Resumen general (líder por nominación)</h3>
       <div id="summary-panel" class="summary-panel"></div>
     </section>
@@ -46,41 +49,46 @@
     </small>
   </footer>
 
-  <!-- ============================= -->
-  <!--  FIREBASE (APP + DATABASE)    -->
-  <!-- ============================= -->
+  <!-- =================================================== -->
+  <!--   FIREBASE (SDK COMPATIBLE CON HTML + JS PLANO)     -->
+  <!-- =================================================== -->
 
-  <!-- SDKs en modo "compat", ideales para proyectos sin npm -->
+  <!-- SDKs de Firebase en modo "compat" -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 
   <script>
-    // Configuración de tu app de Firebase
-    // (tomada del SDK que te dio Firebase; solo se añadió databaseURL)
+    // Configuración REAL de tu proyecto Firebase
     const firebaseConfig = {
-      apiKey: "AIzaSyDbsP6y_vhvu3qirkw--Zn07EQcVDinhG4",
-      authDomain: "votacionesdai2k25.firebaseapp.com",
-      databaseURL: "https://votacionesdai2k25-default-rtdb.firebaseio.com",
-      projectId: "votacionesdai2k25",
-      storageBucket: "votacionesdai2k25.appspot.com",
-      messagingSenderId: "702802321358",
-      appId: "1:702802321358:web:166b997cc3755e5fb0017f",
-      measurementId: "G-MNNQSI4864"
+      apiKey: "AIzaSyBDBOWAOSqoqojaI0XXf-tqi-TZljL7mxQ",
+      authDomain: "votacionesdai2k25-fe93b.firebaseapp.com",
+      databaseURL: "https://votacionesdai2k25-fe93b-default-rtdb.firebaseio.com",
+      projectId: "votacionesdai2k25-fe93b",
+      storageBucket: "votacionesdai2k25-fe93b.firebasestorage.app",
+      messagingSenderId: "208183663126",
+      appId: "1:208183663126:web:05323471dc484bd4d1f337",
+      measurementId: "G-1MY2Y8KZ6C"
     };
 
-    // Inicializar Firebase
+    // Inicializar Firebase (modo compat)
     firebase.initializeApp(firebaseConfig);
 
     // Realtime Database
     const db = firebase.database();
+
     // Rama donde se guardan todos los votos
+    // (esta variable la usa app.js)
     const votesRef = db.ref("votes");
   </script>
 
-  <!-- ============================= -->
-  <!--  SCRIPTS DE LA APLICACIÓN     -->
-  <!-- ============================= -->
+  <!-- ====================================== -->
+  <!--   SCRIPTS DE TU APLICACIÓN DE VOTOS    -->
+  <!-- ====================================== -->
+
+  <!-- Nombres, fotos, categorías y nominaciones -->
   <script src="data.js"></script>
+
+  <!-- Lógica de votos, render, resumen, etc. -->
   <script src="app.js"></script>
 </body>
 </html>
