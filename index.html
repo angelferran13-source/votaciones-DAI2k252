@@ -3,37 +3,37 @@
 <head>
   <meta charset="UTF-8" />
   <title>Votaciones en Vivo</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header>
-    <h1>🏆THE AUDIT AWARDS 2025🏆</h1>
-    <p></p>
+    <h1>Votaciones en Vivo</h1>
+    <p>40 participantes · 10 categorías · 20 nominaciones</p>
   </header>
 
   <main>
-    <!-- PANEL IZQUIERDO: CATEGORÍAS -->
+    <!-- PANEL IZQUIERDO DE CATEGORÍAS -->
     <aside id="categories">
       <h2>Categorías</h2>
       <div id="category-list"></div>
-      <button id="reset-all" class="danger">Reiniciar TODOS los votos</button>
+
+      <button id="reset-all" class="danger">
+        Reiniciar TODOS los votos
+      </button>
     </aside>
 
     <!-- CONTENIDO PRINCIPAL -->
     <section id="content">
       <h2 id="category-title">Selecciona una categoría</h2>
 
-      <!-- Selector de nominaciones de la categoría -->
       <div id="nomination-select-wrapper" class="nomination-select-wrapper">
         <label for="nomination-select">Nominación:</label>
         <select id="nomination-select"></select>
       </div>
 
-      <!-- Aquí se muestran los participantes de la nominación seleccionada -->
       <div id="nominees-container"></div>
 
-      <!-- PANEL DE RESUMEN GENERAL -->
       <hr class="summary-separator">
       <h3 id="summary-title">Resumen general (líder por nominación)</h3>
       <div id="summary-panel" class="summary-panel"></div>
@@ -42,56 +42,52 @@
 
   <footer>
     <small>
-      Sistema de votación en tiempo real con Firebase y panel de resumen gráfico.
+      Sistema de votación en tiempo real con Firebase y panel resumen gráfico.
     </small>
   </footer>
 
-  <!-- ============================= -->
-  <!--  FIREBASE (APP + DATABASE)    -->
-  <!-- ============================= -->
+  <!-- ===================================================== -->
+  <!-- FIREBASE SDK COMPATIBLE (SIN IMPORT, SIN BUNDLERS)   -->
+  <!-- ===================================================== -->
 
-  <!-- SDKs en modo "compat", ideales para proyectos HTML+JS sin npm -->
+  <!-- Firebase App (modo compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <!-- Firebase Realtime Database (modo compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 
   <script>
-    // ⬇⬇⬇ COPIA DESDE FIREBASE Y PÉGALO AQUÍ ⬇⬇⬇
-    // Ve a: Configuración del proyecto → icono "</>" (tu app web)
-    // y copia el bloque "const firebaseConfig = { ... }" que te da Firebase.
-    // Luego AGREGA la línea databaseURL con el valor exacto que ves en
-    // Realtime Database (pestaña Data).
-
+    // 🚀 Configuración REAL de tu Firebase
     const firebaseConfig = {
-      apiKey: "TU_API_KEY_AQUI",
-      authDomain: "TU_PROYECTO.firebaseapp.com",
-      databaseURL: "https://TU_PROYECTO-default-rtdb.firebaseio.com",
-      projectId: "TU_PROYECTO",
-      storageBucket: "TU_PROYECTO.appspot.com",
-      messagingSenderId: "TU_SENDER_ID",
-      appId: "TU_APP_ID",
-      measurementId: "TU_MEASUREMENT_ID"
+      apiKey: "AIzaSyBDBOWAOSqoqojaI0XXf-tqi-TZljL7mxQ",
+      authDomain: "votacionesdai2k25-fe93b.firebaseapp.com",
+      databaseURL: "https://votacionesdai2k25-fe93b-default-rtdb.firebaseio.com",
+      projectId: "votacionesdai2k25-fe93b",
+      storageBucket: "votacionesdai2k25-fe93b.firebasestorage.app",
+      messagingSenderId: "208183663126",
+      appId: "1:208183663126:web:05323471dc484bd4d1f337",
+      measurementId: "G-1MY2Y8KZ6C"
     };
-
-    // ⬆⬆⬆ SOLO EDITA ESTE OBJETO CON TUS DATOS REALES ⬆⬆⬆
 
     // Inicializar Firebase
     firebase.initializeApp(firebaseConfig);
 
-    // Realtime Database
+    // Conexion a base de datos
     const db = firebase.database();
 
-    // Rama donde se guardan todos los votos (la usan app.js y subscribeToVotes)
+    // Referencia donde se guardan todos los votos
     const votesRef = db.ref("votes");
+
+    console.log("🔥 Firebase conectado correctamente");
   </script>
 
-  <!-- ============================= -->
-  <!--  SCRIPTS DE LA APLICACIÓN     -->
-  <!-- ============================= -->
+  <!-- =================================== -->
+  <!-- ARCHIVOS PRINCIPALES DEL PROYECTO   -->
+  <!-- =================================== -->
 
   <!-- Nombres, fotos y categorías -->
   <script src="data.js"></script>
 
-  <!-- Lógica de renderizado, votos, resumen, etc. -->
+  <!-- Lógica de votos, render dinámico y panel resumen -->
   <script src="app.js"></script>
 </body>
 </html>
