@@ -1,7 +1,7 @@
 // ===============
 // PARTICIPANTES
 // ===============
-// Cambia nombres y fotos según tu evento. Asegúrate que los archivos existan en /img
+// Asegúrate que los archivos existan en /img
 
 const participants = [
   { id: "p1",  name: "Valentin",  photo: "img/p1.png" },
@@ -46,10 +46,6 @@ const participants = [
   { id: "p40", name: "Participante 40", photo: "img/imgp40.jpg" }
 ];
 
-// Mapa rápido por id
-const participantsById = {};
-participants.forEach(p => (participantsById[p.id] = p));
-
 // ==================
 // CATEGORÍAS Y NOMINACIONES
 // ==================
@@ -67,7 +63,7 @@ const categories = [
       {
         id: "cat1_nom2",
         name: "el alma de la fiesta",
-        participants: ["p32", "p6", "p13", "p19"] // corregido p13
+        participants: ["p32", "p6", "p13", "p19"]
       }
     ]
   },
@@ -78,12 +74,12 @@ const categories = [
       {
         id: "cat2_nom1",
         name: "el mejor lider",
-        participants: ["p14", "p8", "p23", "p18"] // corregido p23
+        participants: ["p14", "p8", "p23", "p18"]
       },
       {
         id: "cat2_nom2",
         name: "el mas colaborador",
-        participants: ["p33", "p15", "p17", "p32"] // corregido p17
+        participants: ["p33", "p15", "p17", "p32"]
       },
       {
         id: "cat2_nom3",
@@ -217,7 +213,7 @@ const categories = [
           "p17", "p18", "p19", "p20","p21", "p22", "p23", "p24",
           "p25", "p26", "p27", "p28", "p29", "p30", "p31", "p32",
           "p33", "p34", "p35", "p36", "p37", "p38"
-        ] // corregido p33
+        ]
       }
     ]
   }

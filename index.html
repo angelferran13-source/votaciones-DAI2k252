@@ -2,61 +2,20 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Votaciones en Vivo</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AUDIT AWARDS 2025</title>
+
+  <!-- Fuente estilo premios -->
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-  <header>
-    <h1>🏆 AUDIT AWARDS 2025 🏆</h1>
-    <p></p>
-  </header>
 
-  <main>
-    <!-- PANEL IZQUIERDO DE CATEGORÍAS -->
-    <aside id="categories">
-      <h2>Categorías</h2>
-      <div id="category-list"></div>
-
-      <button id="reset-all" class="danger">
-        Reiniciar TODOS los votos
-      </button>
-    </aside>
-
-    <!-- CONTENIDO PRINCIPAL -->
-    <section id="content">
-      <h2 id="category-title">Selecciona una categoría</h2>
-
-      <div id="nomination-select-wrapper" class="nomination-select-wrapper">
-        <label for="nomination-select">Nominación:</label>
-        <select id="nomination-select"></select>
-      </div>
-
-      <div id="nominees-container"></div>
-
-      <hr class="summary-separator">
-      <h3 id="summary-title">Resumen general (líder por nominación)</h3>
-      <div id="summary-panel" class="summary-panel"></div>
-    </section>
-  </main>
-
-  <footer>
-    <small>
-      Sistema de votación en tiempo real con Firebase y panel resumen gráfico.
-    </small>
-  </footer>
-
-  <!-- ===================================================== -->
-  <!-- FIREBASE SDK COMPATIBLE (SIN IMPORT, SIN BUNDLERS)   -->
-  <!-- ===================================================== -->
-
-  <!-- Firebase App (modo compat) -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <!-- Firebase Realtime Database (modo compat) -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <!-- Firebase v8 (modo global) -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
   <script>
-    // 🚀 Configuración REAL de tu Firebase
+    // Configuración de tu proyecto Firebase
     const firebaseConfig = {
       apiKey: "AIzaSyBDBOWAOSqoqojaI0XXf-tqi-TZljL7mxQ",
       authDomain: "votacionesdai2k25-fe93b.firebaseapp.com",
@@ -70,24 +29,80 @@
 
     // Inicializar Firebase
     firebase.initializeApp(firebaseConfig);
-
-    // Conexion a base de datos
-    const db = firebase.database();
-
-    // Referencia donde se guardan todos los votos
-    const votesRef = db.ref("votes");
-
-    console.log("🔥 Firebase conectado correctamente");
+    var votesRef = firebase.database().ref("votes");
   </script>
+</head>
 
-  <!-- =================================== -->
-  <!-- ARCHIVOS PRINCIPALES DEL PROYECTO   -->
-  <!-- =================================== -->
+<body>
 
-  <!-- Nombres, fotos y categorías -->
+  <!-- ============================
+       ENCABEZADO
+  ============================== -->
+  <header class="aw-header">
+    <h1 class="aw-title">🏆 AUDIT AWARDS 2025 🏆</h1>
+  </header>
+
+  <main>
+
+    <!-- ============================
+         PANEL IZQUIERDO
+    ============================== -->
+    <aside id="categories">
+      <h2>Categorías</h2>
+
+      <!-- LISTA DE CATEGORÍAS -->
+      <div id="category-list"></div>
+
+      <!-- BOTÓN RESET ADMIN -->
+      <button id="reset-all" class="danger">
+        Reiniciar TODOS los votos (ADMIN)
+      </button>
+
+      <!-- BOTÓN RESUMEN ADMIN -->
+      <button id="show-summary-admin" class="danger">
+        Ver resumen general (ADMIN)
+      </button>
+
+      <!-- BOTÓN MODO ADMINISTRADOR (MOVIDO AQUÍ) -->
+      <button id="admin-login" class="admin-login-btn">
+        Modo administrador
+      </button>
+    </aside>
+
+    <!-- ============================
+         CONTENIDO PRINCIPAL
+    ============================== -->
+    <section id="content">
+
+      <h2 id="category-title">Selecciona una categoría</h2>
+
+      <!-- SELECTOR DE NOMINACIÓN -->
+      <div class="nomination-select-wrapper">
+        <label for="nomination-select">Nominación:</label>
+        <select id="nomination-select"></select>
+      </div>
+
+      <!-- PARTICIPANTES -->
+      <div id="nominees-container"></div>
+
+      <!-- RESUMEN GENERAL (OCULTO HASTA QUE EL ADMIN LO ACTIVE) -->
+      <div id="summary-section" style="display:none;">
+        <hr class="summary-separator" />
+        <h3 id="summary-title">Resumen general – Líder por nominación</h3>
+        <div id="summary-panel" class="summary-panel"></div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <footer>
+    <small>Sistema de votación en tiempo real – Audit Awards 2025</small>
+  </footer>
+
+  <!-- CARGA DE ARCHIVOS DEL SISTEMA -->
   <script src="data.js"></script>
-
-  <!-- Lógica de votos, render dinámico y panel resumen -->
   <script src="app.js"></script>
+
 </body>
 </html>

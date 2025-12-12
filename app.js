@@ -2,16 +2,27 @@
 // ESTADO GLOBAL
 // =====================================
 
-// votes[categoryId][nominationId][participantId] = número de votos
+// votes[categoryId][nominationId][participantId] = número de votos (desde Firebase)
 let votes = {};
 let currentCategoryId = null;
 let currentNominationId = null;
 
-// =====================================
-// BLOQUEO: 1 VOTO POR DISPOSITIVO
-// =====================================
+// Mapa para acceder rápido a participantes
+const participantsById = {};
+if (Array.isArray(participants)) {
+  participants.forEach((p) => {
+    participantsById[p.id] = p;
+  });
+}
 
-const LOCAL_LOCK_KEY = "user_vote_locks_v1"; // se guarda en localStorage
+// =====================================
+// BLOQUEO: 1 SOLO PARTICIPANTE POR NOMINACIÓN (por navegador)
+// =====================================
+//
+// Estructura en localStorage:
+// { "catId__nomId": "participantId" }
+
+const LOCAL_LOCK_KEY = "user_vote_locks_v4";
 
 let userVoteLocks = JSON.parse(localStorage.getItem(LOCAL_LOCK_KEY) || "{}");
 
@@ -19,30 +30,64 @@ function saveUserVoteLocks() {
   localStorage.setItem(LOCAL_LOCK_KEY, JSON.stringify(userVoteLocks));
 }
 
-function getVoteKey(categoryId, nominationId, participantId) {
-  return `${categoryId}__${nominationId}__${participantId}`;
+function getNominationKey(categoryId, nominationId) {
+  return `${categoryId}__${nominationId}`;
 }
 
-function hasUserVoted(categoryId, nominationId, participantId) {
-  const key = getVoteKey(categoryId, nominationId, participantId);
-  return !!userVoteLocks[key];
+// participantId al que votó ESTE navegador en ESA nominación (o null)
+function getUserVoteInNomination(categoryId, nominationId) {
+  const key = getNominationKey(categoryId, nominationId);
+  return userVoteLocks[key] || null;
 }
 
-function markUserVoted(categoryId, nominationId, participantId) {
-  const key = getVoteKey(categoryId, nominationId, participantId);
-  userVoteLocks[key] = true;
+function hasUserVotedNomination(categoryId, nominationId) {
+  return !!getUserVoteInNomination(categoryId, nominationId);
+}
+
+function markUserVotedNomination(categoryId, nominationId, participantId) {
+  const key = getNominationKey(categoryId, nominationId);
+  userVoteLocks[key] = participantId;
   saveUserVoteLocks();
 }
 
 // =====================================
-// AYUDA PARA LEER VOTOS
+// ADMIN (PIN + botón de login)
+// =====================================
+
+const ADMIN_PIN = "9275"; // 🔐 PIN admin
+let isAdmin = false;
+
+function ensureAdmin() {
+  if (isAdmin) return true;
+
+  const entered = prompt("Introduce el PIN de administrador:");
+  if (entered === null) return false;
+
+  if (entered === ADMIN_PIN) {
+    isAdmin = true;
+    alert("Modo administrador activado.");
+    const btn = document.getElementById("admin-login");
+    if (btn) {
+      btn.textContent = "Admin activo";
+      btn.disabled = true;
+      btn.classList.add("admin-active");
+    }
+    return true;
+  } else {
+    alert("PIN incorrecto.");
+    return false;
+  }
+}
+
+// =====================================
+// ACCESO A VOTOS (objeto 'votes')
 // =====================================
 
 function getVotes(categoryId, nominationId, participantId) {
   if (
     !votes[categoryId] ||
     !votes[categoryId][nominationId] ||
-    votes[categoryId][nominationId][participantId] == null
+    typeof votes[categoryId][nominationId][participantId] !== "number"
   ) {
     return 0;
   }
@@ -50,30 +95,85 @@ function getVotes(categoryId, nominationId, participantId) {
 }
 
 // =====================================
-// SUSCRIPCIÓN A FIREBASE (TIEMPO REAL)
+// SUSCRIPCIÓN A FIREBASE
 // =====================================
 
-// votesRef viene desde index.html (window.votesRef)
 function subscribeToVotes() {
   if (typeof votesRef === "undefined") {
-    console.error("votesRef no está definido. Revisa index.html");
+    console.error("votesRef no está definido. Revisa index.html.");
     return;
   }
 
   votesRef.on("value", (snapshot) => {
     votes = snapshot.val() || {};
 
-    // Si hay categoría/nominación seleccionada, redibujar
     if (currentCategoryId && currentNominationId) {
       renderNomination(currentCategoryId, currentNominationId);
-    } else {
-      renderSummaryPanel();
     }
+    renderSummaryPanel();
   });
 }
 
 // =====================================
-// RENDER CATEGORÍAS
+// RESET DE VOTOS (ADMIN CON PIN)
+// =====================================
+
+function resetAllVotes() {
+  if (!ensureAdmin()) return;
+
+  if (!confirm("¿Seguro que deseas reiniciar TODOS los votos?")) return;
+
+  votesRef.set({}, (error) => {
+    if (error) {
+      console.error("Error al reiniciar votos:", error);
+      alert("Error al reiniciar los votos.");
+      return;
+    }
+
+    votes = {};
+    userVoteLocks = {};
+    saveUserVoteLocks();
+
+    if (currentCategoryId && currentNominationId) {
+      renderNomination(currentCategoryId, currentNominationId);
+    }
+    renderSummaryPanel();
+    alert("Todos los votos han sido reiniciados.");
+  });
+}
+
+// =====================================
+// REGISTRO DE VOTO (1 PARTICIPANTE POR NOMINACIÓN)
+// =====================================
+
+function addVote(categoryId, nominationId, participantId) {
+  // Solo puede elegir un participante por nominación
+  if (hasUserVotedNomination(categoryId, nominationId)) {
+    alert("Ya has votado en esta nominación. Solo puedes elegir un participante.");
+    return;
+  }
+
+  if (typeof votesRef === "undefined") {
+    console.error("votesRef no está definido.");
+    return;
+  }
+
+  const ref = votesRef.child(`${categoryId}/${nominationId}/${participantId}`);
+
+  ref.transaction(
+    (current) => (current || 0) + 1,
+    (error, committed) => {
+      if (error) {
+        console.error("Error al registrar voto:", error);
+      } else if (committed) {
+        markUserVotedNomination(categoryId, nominationId, participantId);
+      }
+    }
+  );
+}
+
+// =====================================
+// RENDER DE CATEGORÍAS
 // =====================================
 
 function renderCategoriesList() {
@@ -85,7 +185,6 @@ function renderCategoriesList() {
     btn.className = "category-btn";
     btn.dataset.id = cat.id;
 
-    // mini foto
     let thumb = null;
     if (
       cat.nominations &&
@@ -110,6 +209,7 @@ function renderCategoriesList() {
     btn.appendChild(span);
 
     btn.onclick = () => selectCategory(cat.id);
+
     listEl.appendChild(btn);
   });
 }
@@ -134,10 +234,10 @@ function populateNominationSelect(cat) {
   select.innerHTML = "";
 
   cat.nominations.forEach((nom) => {
-    const option = document.createElement("option");
-    option.value = nom.id;
-    option.textContent = nom.name;
-    select.appendChild(option);
+    const opt = document.createElement("option");
+    opt.value = nom.id;
+    opt.textContent = nom.name;
+    select.appendChild(opt);
   });
 
   select.onchange = () => {
@@ -159,12 +259,30 @@ function renderNomination(categoryId, nominationId) {
   const container = document.getElementById("nominees-container");
   container.innerHTML = "";
 
-  nomination.participants.forEach((pid) => {
-    const p = participantsById[pid];
-    if (!p) return;
+  const items = nomination.participants
+    .map((pid) => {
+      const p = participantsById[pid];
+      if (!p) return null;
+      const v = getVotes(categoryId, nominationId, pid);
+      return { pid, participant: p, votes: v };
+    })
+    .filter((item) => item !== null);
 
+  // Ordenar por votos (desc) y nombre
+  items.sort((a, b) => {
+    if (b.votes !== a.votes) return b.votes - a.votes;
+    return a.participant.name.localeCompare(b.participant.name);
+  });
+
+  const votedPid = getUserVoteInNomination(categoryId, nominationId);
+  const alreadyVotedNom = !!votedPid;
+
+  items.forEach(({ pid, participant: p, votes: v }, index) => {
     const card = document.createElement("div");
     card.className = "nominee-card";
+    if (index === 0 && v > 0) {
+      card.classList.add("top");
+    }
 
     const img = document.createElement("img");
     img.src = p.photo;
@@ -174,22 +292,22 @@ function renderNomination(categoryId, nominationId) {
     nameEl.className = "nominee-name";
     nameEl.textContent = p.name;
 
-    const v = getVotes(categoryId, nominationId, pid);
     const votesEl = document.createElement("div");
     votesEl.className = "nominee-votes";
     votesEl.innerHTML = `Votos: <span>${v}</span>`;
 
-    const alreadyVoted = hasUserVoted(categoryId, nominationId, pid);
-
     const btn = document.createElement("button");
     btn.className = "vote-btn";
 
-    if (alreadyVoted) {
+    if (!alreadyVotedNom) {
+      btn.textContent = "+1 voto";
+      btn.onclick = () => addVote(categoryId, nominationId, pid);
+    } else if (votedPid === pid) {
       btn.textContent = "Ya votaste";
       btn.disabled = true;
     } else {
-      btn.textContent = "+1 voto";
-      btn.onclick = () => addVote(categoryId, nominationId, pid);
+      btn.textContent = "Voto no disponible";
+      btn.disabled = true;
     }
 
     card.appendChild(img);
@@ -201,58 +319,10 @@ function renderNomination(categoryId, nominationId) {
   });
 
   highlightActiveCategory();
-  renderSummaryPanel();
 }
 
 // =====================================
-// LÓGICA DE VOTO EN FIREBASE
-// =====================================
-
-function addVote(categoryId, nominationId, participantId) {
-  if (hasUserVoted(categoryId, nominationId, participantId)) {
-    alert("Ya has votado por este participante en esta nominación.");
-    return;
-  }
-
-  const ref = votesRef.child(`${categoryId}/${nominationId}/${participantId}`);
-
-  ref.transaction(
-    (current) => {
-      return (current || 0) + 1;
-    },
-    (error, committed) => {
-      if (!error && committed) {
-        markUserVoted(categoryId, nominationId, participantId);
-        // No llamamos a renderNomination aquí, subscribeToVotes se encargará
-      } else if (error) {
-        console.error("Error al registrar voto:", error);
-      }
-    }
-  );
-}
-
-function resetAllVotes() {
-  if (!confirm("¿Seguro que deseas reiniciar TODOS los votos?")) return;
-
-  votesRef.set({}, (error) => {
-    if (error) {
-      console.error("Error al reiniciar votos:", error);
-      return;
-    }
-    votes = {};
-    userVoteLocks = {};
-    saveUserVoteLocks();
-
-    if (currentCategoryId && currentNominationId) {
-      renderNomination(currentCategoryId, currentNominationId);
-    } else {
-      renderSummaryPanel();
-    }
-  });
-}
-
-// =====================================
-// RESUMEN GENERAL (LÍDER POR NOMINACIÓN)
+// RESUMEN GENERAL
 // =====================================
 
 function getLeaderForNomination(categoryId, nomination) {
@@ -263,7 +333,6 @@ function getLeaderForNomination(categoryId, nomination) {
     if (!p) return;
 
     const v = getVotes(categoryId, nomination.id, pid);
-
     if (!leader || v > leader.votes) {
       leader = { participant: p, votes: v };
     }
@@ -310,7 +379,6 @@ function renderSummaryPanel() {
 
         info.appendChild(nameEl);
         info.appendChild(votesEl);
-
         content.appendChild(img);
         content.appendChild(info);
       } else {
@@ -340,11 +408,13 @@ function selectCategory(categoryId) {
 
   if (currentNominationId) {
     renderNomination(categoryId, currentNominationId);
+  } else {
+    document.getElementById("nominees-container").innerHTML = "";
   }
 }
 
 // =====================================
-// INICIO
+// INICIALIZACIÓN
 // =====================================
 
 window.addEventListener("DOMContentLoaded", () => {
@@ -355,9 +425,28 @@ window.addEventListener("DOMContentLoaded", () => {
     resetBtn.addEventListener("click", resetAllVotes);
   }
 
+  const summaryAdminBtn = document.getElementById("show-summary-admin");
+  if (summaryAdminBtn) {
+    summaryAdminBtn.addEventListener("click", () => {
+      if (!ensureAdmin()) return;
+      const section = document.getElementById("summary-section");
+      if (section) {
+        section.style.display = "block";
+      }
+      renderSummaryPanel();
+    });
+  }
+
+  const adminLoginBtn = document.getElementById("admin-login");
+  if (adminLoginBtn) {
+    adminLoginBtn.addEventListener("click", () => {
+      ensureAdmin();
+    });
+  }
+
   if (categories.length > 0) {
     selectCategory(categories[0].id);
   }
 
-  subscribeToVotes(); // 🔥 escuchar cambios en tiempo real
+  subscribeToVotes();
 });
