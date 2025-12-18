@@ -15,7 +15,7 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
   <script>
-    // Configuración de tu proyecto Firebase
+    // Configuración Firebase
     const firebaseConfig = {
       apiKey: "AIzaSyBDBOWAOSqoqojaI0XXf-tqi-TZljL7mxQ",
       authDomain: "votacionesdai2k25-fe93b.firebaseapp.com",
@@ -27,7 +27,6 @@
       measurementId: "G-1MY2Y8KZ6C"
     };
 
-    // Inicializar Firebase
     firebase.initializeApp(firebaseConfig);
     var votesRef = firebase.database().ref("votes");
   </script>
@@ -53,17 +52,22 @@
       <!-- LISTA DE CATEGORÍAS -->
       <div id="category-list"></div>
 
-      <!-- BOTÓN RESET ADMIN -->
+      <!-- RESET SOLO ESTE DISPOSITIVO -->
+      <button id="reset-session" class="danger">
+        Reiniciar votos de este dispositivo
+      </button>
+
+      <!-- RESET GLOBAL (ADMIN) -->
       <button id="reset-all" class="danger">
         Reiniciar TODOS los votos (ADMIN)
       </button>
 
-      <!-- BOTÓN RESUMEN ADMIN -->
+      <!-- RESUMEN GENERAL (ADMIN) -->
       <button id="show-summary-admin" class="danger">
         Ver resumen general (ADMIN)
       </button>
 
-      <!-- BOTÓN MODO ADMINISTRADOR (MOVIDO AQUÍ) -->
+      <!-- MODO ADMINISTRADOR (PIN 9275) -->
       <button id="admin-login" class="admin-login-btn">
         Modo administrador
       </button>
@@ -82,10 +86,15 @@
         <select id="nomination-select"></select>
       </div>
 
-      <!-- PARTICIPANTES -->
+      <!-- MENSAJE: YA VOTÓ EN TODAS LAS NOMINACIONES -->
+      <div id="all-voted-message" class="all-voted" style="display:none;">
+        🎉 ¡Ya has votado en todas las nominaciones desde este dispositivo! 🎉
+      </div>
+
+      <!-- TARJETAS DE PARTICIPANTES -->
       <div id="nominees-container"></div>
 
-      <!-- RESUMEN GENERAL (OCULTO HASTA QUE EL ADMIN LO ACTIVE) -->
+      <!-- RESUMEN GENERAL (OCULTO HASTA ADMIN) -->
       <div id="summary-section" style="display:none;">
         <hr class="summary-separator" />
         <h3 id="summary-title">Resumen general – Líder por nominación</h3>
@@ -100,7 +109,7 @@
     <small>Sistema de votación en tiempo real – Audit Awards 2025</small>
   </footer>
 
-  <!-- CARGA DE ARCHIVOS DEL SISTEMA -->
+  <!-- ARCHIVOS JS DEL SISTEMA -->
   <script src="data.js"></script>
   <script src="app.js"></script>
 

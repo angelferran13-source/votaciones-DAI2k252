@@ -7,6 +7,17 @@ let votes = {};
 let currentCategoryId = null;
 let currentNominationId = null;
 
+// ====== IDENTIFICADOR ÚNICO POR DISPOSITIVO (NAVEGADOR) ======
+const DEVICE_ID_KEY = "device_id_v1";
+let DEVICE_ID = localStorage.getItem(DEVICE_ID_KEY);
+if (!DEVICE_ID) {
+  DEVICE_ID =
+    "dev_" +
+    Math.random().toString(36).slice(2) +
+    Date.now().toString(36);
+  localStorage.setItem(DEVICE_ID_KEY, DEVICE_ID);
+}
+
 // Mapa para acceder rápido a participantes
 const participantsById = {};
 if (Array.isArray(participants)) {
@@ -15,6 +26,10 @@ if (Array.isArray(participants)) {
   });
 }
 
+// Referencia para guardar los votos por dispositivo
+// Estructura: deviceVotes/<DEVICE_ID>/<categoryId>/<nominationId>/<participantId> = true
+const deviceVotesRef = firebase.database().ref("deviceVotes");
+
 // =====================================
 // BLOQUEO: 1 SOLO PARTICIPANTE POR NOMINACIÓN (por navegador)
 // =====================================
@@ -22,8 +37,7 @@ if (Array.isArray(participants)) {
 // Estructura en localStorage:
 // { "catId__nomId": "participantId" }
 
-const LOCAL_LOCK_KEY = "user_vote_locks_v4";
-
+const LOCAL_LOCK_KEY = "user_vote_locks_v6";
 let userVoteLocks = JSON.parse(localStorage.getItem(LOCAL_LOCK_KEY) || "{}");
 
 function saveUserVoteLocks() {
@@ -48,6 +62,7 @@ function markUserVotedNomination(categoryId, nominationId, participantId) {
   const key = getNominationKey(categoryId, nominationId);
   userVoteLocks[key] = participantId;
   saveUserVoteLocks();
+  updateAllVotedMessage();
 }
 
 // =====================================
@@ -115,31 +130,61 @@ function subscribeToVotes() {
 }
 
 // =====================================
-// RESET DE VOTOS (ADMIN CON PIN)
+// RESET GLOBAL DE VOTOS (ADMIN CON PIN)
 // =====================================
 
 function resetAllVotes() {
   if (!ensureAdmin()) return;
 
-  if (!confirm("¿Seguro que deseas reiniciar TODOS los votos?")) return;
+  if (!confirm("¿Seguro que deseas reiniciar TODOS los votos (globalmente)?")) return;
 
-  votesRef.set({}, (error) => {
-    if (error) {
-      console.error("Error al reiniciar votos:", error);
-      alert("Error al reiniciar los votos.");
-      return;
-    }
+  // Borra los votos globales y también el registro de votos por dispositivo
+  const updates = {};
+  updates["/votes"] = {};
+  updates["/deviceVotes"] = {};
 
-    votes = {};
-    userVoteLocks = {};
-    saveUserVoteLocks();
+  firebase
+    .database()
+    .ref()
+    .update(updates, (error) => {
+      if (error) {
+        console.error("Error al reiniciar votos:", error);
+        alert("Error al reiniciar los votos.");
+        return;
+      }
 
-    if (currentCategoryId && currentNominationId) {
-      renderNomination(currentCategoryId, currentNominationId);
-    }
-    renderSummaryPanel();
-    alert("Todos los votos han sido reiniciados.");
+      votes = {};
+      userVoteLocks = {};
+      saveUserVoteLocks();
+      updateAllVotedMessage();
+
+      if (currentCategoryId && currentNominationId) {
+        renderNomination(currentCategoryId, currentNominationId);
+      }
+      renderSummaryPanel();
+      alert("Todos los votos han sido reiniciados globalmente.");
+    });
+}
+
+// =====================================
+// INDICAR CUANDO YA VOTÓ EN TODAS LAS NOMINACIONES
+// =====================================
+
+function updateAllVotedMessage() {
+  const msgEl = document.getElementById("all-voted-message");
+  if (!msgEl) return;
+
+  const allKeys = [];
+  categories.forEach((cat) => {
+    cat.nominations.forEach((nom) => {
+      allKeys.push(getNominationKey(cat.id, nom.id));
+    });
   });
+
+  const allVoted =
+    allKeys.length > 0 && allKeys.every((k) => !!userVoteLocks[k]);
+
+  msgEl.style.display = allVoted ? "block" : "none";
 }
 
 // =====================================
@@ -158,18 +203,129 @@ function addVote(categoryId, nominationId, participantId) {
     return;
   }
 
+  // 🔒 BLOQUEO OPTIMISTA: marcamos de una vez que votó
+  markUserVotedNomination(categoryId, nominationId, participantId);
+
+  // Guardamos que ESTE dispositivo votó por este participante
+  const devPath = `${DEVICE_ID}/${categoryId}/${nominationId}/${participantId}`;
+  deviceVotesRef.child(devPath).set(true, (err) => {
+    if (err) {
+      console.error("Error al guardar voto por dispositivo:", err);
+    }
+  });
+
   const ref = votesRef.child(`${categoryId}/${nominationId}/${participantId}`);
 
   ref.transaction(
     (current) => (current || 0) + 1,
     (error, committed) => {
-      if (error) {
+      if (error || !committed) {
         console.error("Error al registrar voto:", error);
-      } else if (committed) {
-        markUserVotedNomination(categoryId, nominationId, participantId);
+
+        // Revertimos bloqueo y registro de dispositivo
+        const key = getNominationKey(categoryId, nominationId);
+        delete userVoteLocks[key];
+        saveUserVoteLocks();
+        updateAllVotedMessage();
+
+        deviceVotesRef
+          .child(devPath)
+          .remove()
+          .catch(() => {});
+
+        alert("Ocurrió un problema al registrar tu voto. Intenta de nuevo.");
       }
     }
   );
+}
+
+// =====================================
+// RESET SOLO DE ESTA SESIÓN / DISPOSITIVO
+// =====================================
+//
+// - Busca en deviceVotes/<DEVICE_ID> todos los votos que este dispositivo hizo.
+// - Por cada uno, RESTA 1 al contador global.
+// - Luego borra los registros de este dispositivo y desbloquea las nominaciones.
+//
+
+function resetSessionVotes() {
+  if (
+    !confirm(
+      "Esto eliminará los votos que este dispositivo ha aportado y te permitirá votar de nuevo.\n\n" +
+      "Los demás votos de otras personas NO se verán afectados.\n\n" +
+      "¿Deseas continuar?"
+    )
+  ) {
+    return;
+  }
+
+  const thisDeviceRef = deviceVotesRef.child(DEVICE_ID);
+
+  thisDeviceRef.once("value", (snapshot) => {
+    const data = snapshot.val();
+
+    if (!data) {
+      // No hay registro de votos de este dispositivo
+      userVoteLocks = {};
+      saveUserVoteLocks();
+      updateAllVotedMessage();
+      if (currentCategoryId && currentNominationId) {
+        renderNomination(currentCategoryId, currentNominationId);
+      }
+      alert("No había votos registrados para este dispositivo. Ya puedes votar de nuevo.");
+      return;
+    }
+
+    const ops = [];
+
+    // Recorremos: categoryId -> nominationId -> participantId
+    Object.keys(data).forEach((categoryId) => {
+      const nomObj = data[categoryId] || {};
+      Object.keys(nomObj).forEach((nominationId) => {
+        const partObj = nomObj[nominationId] || {};
+        Object.keys(partObj).forEach((participantId) => {
+          const voteRef = votesRef.child(`${categoryId}/${nominationId}/${participantId}`);
+
+          const p = new Promise((resolve) => {
+            voteRef.transaction(
+              (current) => {
+                const c = current || 0;
+                // Evitamos negativos
+                return c > 0 ? c - 1 : 0;
+              },
+              () => {
+                resolve();
+              }
+            );
+          });
+
+          ops.push(p);
+        });
+      });
+    });
+
+    Promise.all(ops)
+      .then(() => {
+        // Borramos el registro de este dispositivo
+        return thisDeviceRef.remove();
+      })
+      .then(() => {
+        // Limpiamos los bloqueos locales
+        userVoteLocks = {};
+        saveUserVoteLocks();
+        updateAllVotedMessage();
+
+        if (currentCategoryId && currentNominationId) {
+          renderNomination(currentCategoryId, currentNominationId);
+        }
+
+        alert("Se eliminaron los votos realizados desde este dispositivo. Ahora puedes votar de nuevo en todas las nominaciones.");
+      })
+      .catch((err) => {
+        console.error("Error al resetear votos de este dispositivo:", err);
+        alert("Hubo un problema al resetear tus votos. Intenta nuevamente.");
+      });
+  });
 }
 
 // =====================================
@@ -319,6 +475,7 @@ function renderNomination(categoryId, nominationId) {
   });
 
   highlightActiveCategory();
+  updateAllVotedMessage();
 }
 
 // =====================================
@@ -420,9 +577,14 @@ function selectCategory(categoryId) {
 window.addEventListener("DOMContentLoaded", () => {
   renderCategoriesList();
 
-  const resetBtn = document.getElementById("reset-all");
-  if (resetBtn) {
-    resetBtn.addEventListener("click", resetAllVotes);
+  const resetAllBtn = document.getElementById("reset-all");
+  if (resetAllBtn) {
+    resetAllBtn.addEventListener("click", resetAllVotes);
+  }
+
+  const resetSessionBtn = document.getElementById("reset-session");
+  if (resetSessionBtn) {
+    resetSessionBtn.addEventListener("click", resetSessionVotes);
   }
 
   const summaryAdminBtn = document.getElementById("show-summary-admin");
@@ -448,5 +610,6 @@ window.addEventListener("DOMContentLoaded", () => {
     selectCategory(categories[0].id);
   }
 
+  updateAllVotedMessage();
   subscribeToVotes();
 });
