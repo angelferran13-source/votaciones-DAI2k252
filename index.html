@@ -5,17 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AUDIT AWARDS 2025</title>
 
-  <!-- Fuente estilo premios -->
+  <link rel="stylesheet" href="styles.css" />
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="styles.css" />
-
-  <!-- Firebase v8 (modo global) -->
+  <!-- Firebase v8 -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
   <script>
-    // Configuración Firebase
     const firebaseConfig = {
       apiKey: "AIzaSyBDBOWAOSqoqojaI0XXf-tqi-TZljL7mxQ",
       authDomain: "votacionesdai2k25-fe93b.firebaseapp.com",
@@ -28,90 +25,206 @@
     };
 
     firebase.initializeApp(firebaseConfig);
+
+    // Refs
     var votesRef = firebase.database().ref("votes");
+    var deviceVotesRef = firebase.database().ref("deviceVotes");
+    var deviceProfilesRef = firebase.database().ref("deviceProfiles");
+    var deviceStatusRef = firebase.database().ref("deviceStatus");
   </script>
+
+  <style>
+    /* Modal registro */
+    .modal-backdrop{
+      position:fixed; inset:0;
+      background:rgba(0,0,0,0.82);
+      display:none; align-items:center; justify-content:center;
+      padding:16px; z-index:9999;
+    }
+    .modal{
+      width:100%; max-width:460px;
+      background:rgba(10,10,10,0.95);
+      border:1px solid rgba(255,255,255,0.18);
+      border-radius:14px;
+      padding:18px 16px;
+      color:#fff;
+    }
+    .modal h3{ margin:0 0 8px; }
+    .modal p{ margin:0 0 12px; opacity:.85; font-size:.92rem; }
+    .modal .grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .modal input{
+      width:100%;
+      padding:10px 12px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,0.25);
+      background:rgba(255,255,255,0.06);
+      color:#fff; outline:none;
+      font-size:1rem;
+    }
+    .modal input.full{ grid-column:1 / -1; }
+    .modal .row{ display:flex; gap:10px; justify-content:flex-end; margin-top:12px; }
+    .modal button{
+      padding:10px 12px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,0.25);
+      background:rgba(255,255,255,0.08);
+      color:#fff; cursor:pointer; font-weight:800;
+    }
+    .modal button.primary{ background:#ff0000; border-color:#ff0000; }
+    .modal .error{ color:#ffb4b4; font-size:0.9rem; min-height:1.2em; margin-top:8px; }
+    @media (max-width:420px){ .modal .grid{ grid-template-columns:1fr; } }
+
+    /* Admin panel containers */
+    #admin-panel { display:none; margin-top:12px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.25); }
+    .admin-box-title { font-weight:800; margin:8px 0; opacity:.95; }
+    .admin-actions { display:flex; flex-direction:column; gap:8px; }
+    .admin-hint { font-size:.85rem; opacity:.8; margin-top:6px; }
+
+    /* Dashboards */
+    #admin-dashboards { display:none; margin-top:16px; }
+    .dash-grid { display:grid; grid-template-columns:1fr; gap:12px; }
+    .dash-card{
+      background:rgba(0,0,0,0.55);
+      border:1px solid rgba(255,255,255,0.2);
+      border-radius:12px;
+      padding:12px;
+    }
+    .dash-card h3{ margin:0 0 10px; }
+    .table{
+      width:100%;
+      border-collapse:collapse;
+      font-size:.92rem;
+    }
+    .table th,.table td{
+      border-bottom:1px solid rgba(255,255,255,0.18);
+      padding:8px 6px;
+      text-align:left;
+      vertical-align:middle;
+    }
+    .mini{
+      display:flex; align-items:center; gap:10px;
+    }
+    .mini img{
+      width:34px; height:34px; border-radius:50%;
+      object-fit:cover; border:2px solid #ff0101;
+    }
+  </style>
 </head>
 
 <body>
-
-  <!-- ============================
-       ENCABEZADO
-  ============================== -->
-  <header class="aw-header">
-    <h1 class="aw-title">🏆 AUDIT AWARDS 2025 🏆</h1>
+  <header>
+    <h1 style="font-family:Cinzel,serif; text-align:center;">🏆 AUDIT AWARDS 2025 🏆</h1>
   </header>
 
   <main>
-
-    <!-- ============================
-         PANEL IZQUIERDO
-    ============================== -->
     <aside id="categories">
       <h2>Categorías</h2>
-
-      <!-- LISTA DE CATEGORÍAS -->
       <div id="category-list"></div>
 
-      <!-- RESET SOLO ESTE DISPOSITIVO -->
-      <button id="reset-session" class="danger">
-        Reiniciar votos de este dispositivo
-      </button>
+      <!-- Botón admin (siempre visible) -->
+      <button id="admin-login" class="danger">Modo administrador</button>
 
-      <!-- RESET GLOBAL (ADMIN) -->
-      <button id="reset-all" class="danger">
-        Reiniciar TODOS los votos (ADMIN)
-      </button>
-
-      <!-- RESUMEN GENERAL (ADMIN) -->
-      <button id="show-summary-admin" class="danger">
-        Ver resumen general (ADMIN)
-      </button>
-
-      <!-- MODO ADMINISTRADOR (PIN 9275) -->
-      <button id="admin-login" class="admin-login-btn">
-        Modo administrador
-      </button>
+      <!-- Panel admin oculto hasta PIN -->
+      <div id="admin-panel">
+        <div class="admin-box-title">Panel Administrador</div>
+        <div class="admin-actions">
+          <button id="btn-admin-summary" class="danger">Ver Resumen General</button>
+          <button id="btn-admin-votes-dashboard" class="danger">Dashboard Votos (en vivo)</button>
+          <button id="btn-admin-users-dashboard" class="danger">Dashboard Registros (en vivo)</button>
+          <button id="btn-admin-export-origins" class="danger">Exportar Registro + Origen CSV</button>
+          <button id="btn-admin-reset-all" class="danger">Reiniciar TODOS los votos</button>
+        </div>
+        <div class="admin-hint">Estas opciones solo son visibles en modo administrador.</div>
+      </div>
     </aside>
 
-    <!-- ============================
-         CONTENIDO PRINCIPAL
-    ============================== -->
     <section id="content">
-
       <h2 id="category-title">Selecciona una categoría</h2>
 
-      <!-- SELECTOR DE NOMINACIÓN -->
       <div class="nomination-select-wrapper">
         <label for="nomination-select">Nominación:</label>
         <select id="nomination-select"></select>
       </div>
 
-      <!-- MENSAJE: YA VOTÓ EN TODAS LAS NOMINACIONES -->
-      <div id="all-voted-message" class="all-voted" style="display:none;">
-        🎉 ¡Ya has votado en todas las nominaciones desde este dispositivo! 🎉
+      <div id="all-voted-message" style="display:none; padding:10px; background:rgba(0,0,0,0.55); border-radius:10px; border:1px solid rgba(255,255,255,0.2); margin:10px 0;">
+        ✅ Ya votaste en esta nominación. Puedes votar en otras nominaciones.
       </div>
 
-      <!-- TARJETAS DE PARTICIPANTES -->
+      <!-- Público -->
       <div id="nominees-container"></div>
 
-      <!-- RESUMEN GENERAL (OCULTO HASTA ADMIN) -->
-      <div id="summary-section" style="display:none;">
-        <hr class="summary-separator" />
-        <h3 id="summary-title">Resumen general – Líder por nominación</h3>
-        <div id="summary-panel" class="summary-panel"></div>
+      <!-- ADMIN: Dashboards -->
+      <div id="admin-dashboards">
+        <div class="dash-grid">
+
+          <div class="dash-card" id="dash-summary" style="display:none;">
+            <h3>Resumen General (Líder por nominación)</h3>
+            <div id="summary-panel" class="summary-panel"></div>
+          </div>
+
+          <div class="dash-card" id="dash-votes" style="display:none;">
+            <h3>Dashboard Votos (en vivo)</h3>
+            <div style="opacity:.85; margin-bottom:8px;">
+              Muestra el ranking de la nominación actualmente seleccionada.
+            </div>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Participante</th>
+                  <th>Votos</th>
+                </tr>
+              </thead>
+              <tbody id="votes-dashboard-body"></tbody>
+            </table>
+          </div>
+
+          <div class="dash-card" id="dash-users" style="display:none;">
+            <h3>Dashboard Registros (en vivo)</h3>
+            <div style="opacity:.85; margin-bottom:8px;">
+              Lista de votantes registrados en tiempo real.
+            </div>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Apellido</th>
+                  <th>Cédula</th>
+                  <th>Device</th>
+                  <th>Fecha</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="users-dashboard-body"></tbody>
+            </table>
+          </div>
+
+        </div>
       </div>
-
     </section>
-
   </main>
 
-  <footer>
-    <small>Sistema de votación en tiempo real – Audit Awards 2025</small>
-  </footer>
+  <!-- MODAL REGISTRO -->
+  <div id="reg-modal-backdrop" class="modal-backdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true">
+      <h3>Registro de votante</h3>
+      <p>Completa tus datos para poder votar. (Máximo 48 votantes registrados)</p>
 
-  <!-- ARCHIVOS JS DEL SISTEMA -->
+      <div class="grid">
+        <input id="reg-firstname" type="text" placeholder="Nombre" maxlength="40" />
+        <input id="reg-lastname" type="text" placeholder="Apellido" maxlength="40" />
+        <input id="reg-cedula" class="full" type="text" placeholder="Cédula" maxlength="25" />
+      </div>
+
+      <div class="row">
+        <button id="reg-save" class="primary">Guardar</button>
+      </div>
+
+      <div id="reg-error" class="error"></div>
+    </div>
+  </div>
+
   <script src="data.js"></script>
   <script src="app.js"></script>
-
 </body>
 </html>

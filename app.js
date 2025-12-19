@@ -1,615 +1,478 @@
 // =====================================
-// ESTADO GLOBAL
+// CONFIG
 // =====================================
+const MAX_VOTERS = 48;
+const ADMIN_PIN = "9275"; // cambia esto si quieres
 
-// votes[categoryId][nominationId][participantId] = número de votos (desde Firebase)
+// =====================================
+// ESTADO
+// =====================================
 let votes = {};
 let currentCategoryId = null;
 let currentNominationId = null;
+let isAdmin = false;
 
-// ====== IDENTIFICADOR ÚNICO POR DISPOSITIVO (NAVEGADOR) ======
+// =====================================
+// DOM (SE ASIGNA EN DOMContentLoaded)
+// =====================================
+let categoryList, nominationSelect, categoryTitle, nomineesContainer;
+let regBackdrop, regFirstname, regLastname, regCedula, regSave, regError;
+
+// =====================================
+// DEVICE ID
+// =====================================
 const DEVICE_ID_KEY = "device_id_v1";
 let DEVICE_ID = localStorage.getItem(DEVICE_ID_KEY);
 if (!DEVICE_ID) {
-  DEVICE_ID =
-    "dev_" +
-    Math.random().toString(36).slice(2) +
-    Date.now().toString(36);
+  DEVICE_ID = "dev_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
   localStorage.setItem(DEVICE_ID_KEY, DEVICE_ID);
 }
 
-// Mapa para acceder rápido a participantes
+// Perfil local
+const DEVICE_PROFILE_KEY = "device_profile_v1";
+let DEVICE_PROFILE = null;
+try { DEVICE_PROFILE = JSON.parse(localStorage.getItem(DEVICE_PROFILE_KEY) || "null"); } catch {}
+
+// Mapa participantes (data.js)
 const participantsById = {};
-if (Array.isArray(participants)) {
-  participants.forEach((p) => {
-    participantsById[p.id] = p;
-  });
-}
-
-// Referencia para guardar los votos por dispositivo
-// Estructura: deviceVotes/<DEVICE_ID>/<categoryId>/<nominationId>/<participantId> = true
-const deviceVotesRef = firebase.database().ref("deviceVotes");
+participants.forEach(p => (participantsById[p.id] = p));
 
 // =====================================
-// BLOQUEO: 1 SOLO PARTICIPANTE POR NOMINACIÓN (por navegador)
+// UTIL
 // =====================================
-//
-// Estructura en localStorage:
-// { "catId__nomId": "participantId" }
+function norm(s){ return String(s||"").trim(); }
+function fmtDate(ts){ return ts ? new Date(ts).toLocaleString() : ""; }
 
-const LOCAL_LOCK_KEY = "user_vote_locks_v6";
-let userVoteLocks = JSON.parse(localStorage.getItem(LOCAL_LOCK_KEY) || "{}");
-
-function saveUserVoteLocks() {
-  localStorage.setItem(LOCAL_LOCK_KEY, JSON.stringify(userVoteLocks));
+function showBanner(msg){
+  const el = document.getElementById("all-voted-message");
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = "block";
 }
-
-function getNominationKey(categoryId, nominationId) {
-  return `${categoryId}__${nominationId}`;
-}
-
-// participantId al que votó ESTE navegador en ESA nominación (o null)
-function getUserVoteInNomination(categoryId, nominationId) {
-  const key = getNominationKey(categoryId, nominationId);
-  return userVoteLocks[key] || null;
-}
-
-function hasUserVotedNomination(categoryId, nominationId) {
-  return !!getUserVoteInNomination(categoryId, nominationId);
-}
-
-function markUserVotedNomination(categoryId, nominationId, participantId) {
-  const key = getNominationKey(categoryId, nominationId);
-  userVoteLocks[key] = participantId;
-  saveUserVoteLocks();
-  updateAllVotedMessage();
+function hideBanner(){
+  const el = document.getElementById("all-voted-message");
+  if (!el) return;
+  el.style.display = "none";
 }
 
 // =====================================
-// ADMIN (PIN + botón de login)
+// MODAL REGISTRO
 // =====================================
+function showRegModal(){
+  if (!regBackdrop) return;
+  regError.textContent = "";
+  regBackdrop.style.display = "flex";
+  regBackdrop.setAttribute("aria-hidden", "false");
+}
+function hideRegModal(){
+  if (!regBackdrop) return;
+  regBackdrop.style.display = "none";
+  regBackdrop.setAttribute("aria-hidden", "true");
+}
 
-const ADMIN_PIN = "9275"; // 🔐 PIN admin
-let isAdmin = false;
-
-function ensureAdmin() {
+// =====================================
+// ADMIN
+// =====================================
+function ensureAdmin(){
   if (isAdmin) return true;
-
-  const entered = prompt("Introduce el PIN de administrador:");
-  if (entered === null) return false;
-
-  if (entered === ADMIN_PIN) {
+  const pin = prompt("PIN de administrador:");
+  if (pin === ADMIN_PIN) {
     isAdmin = true;
-    alert("Modo administrador activado.");
-    const btn = document.getElementById("admin-login");
-    if (btn) {
-      btn.textContent = "Admin activo";
-      btn.disabled = true;
-      btn.classList.add("admin-active");
-    }
+    const panel = document.getElementById("admin-panel");
+    const dashes = document.getElementById("admin-dashboards");
+    if (panel) panel.style.display = "block";
+    if (dashes) dashes.style.display = "block";
+    subscribeProfilesForAdmin();
+    alert("Modo administrador activado");
     return true;
-  } else {
-    alert("PIN incorrecto.");
-    return false;
   }
+  alert("PIN incorrecto");
+  return false;
 }
 
 // =====================================
-// ACCESO A VOTOS (objeto 'votes')
+// REGISTRO
 // =====================================
+async function ensureDeviceProfile(){
+  if (DEVICE_PROFILE) return;
 
-function getVotes(categoryId, nominationId, participantId) {
-  if (
-    !votes[categoryId] ||
-    !votes[categoryId][nominationId] ||
-    typeof votes[categoryId][nominationId][participantId] !== "number"
-  ) {
-    return 0;
-  }
-  return votes[categoryId][nominationId][participantId];
-}
-
-// =====================================
-// SUSCRIPCIÓN A FIREBASE
-// =====================================
-
-function subscribeToVotes() {
-  if (typeof votesRef === "undefined") {
-    console.error("votesRef no está definido. Revisa index.html.");
+  const snap = await deviceProfilesRef.child(DEVICE_ID).once("value");
+  if (snap.exists()) {
+    DEVICE_PROFILE = snap.val();
+    localStorage.setItem(DEVICE_PROFILE_KEY, JSON.stringify(DEVICE_PROFILE));
     return;
   }
 
-  votesRef.on("value", (snapshot) => {
-    votes = snapshot.val() || {};
+  showRegModal();
+}
 
+async function saveDeviceProfileFromModal(){
+  const fn = norm(regFirstname.value);
+  const ln = norm(regLastname.value);
+  const ce = norm(regCedula.value);
+
+  if (!fn || !ln || !ce) {
+    regError.textContent = "Todos los campos son obligatorios";
+    return;
+  }
+
+  // límite 48
+  const all = (await deviceProfilesRef.once("value")).val() || {};
+  if (!all[DEVICE_ID] && Object.keys(all).length >= MAX_VOTERS) {
+    regError.textContent = "Registro cerrado (48 votantes)";
+    return;
+  }
+
+  DEVICE_PROFILE = { firstName: fn, lastName: ln, cedula: ce };
+  localStorage.setItem(DEVICE_PROFILE_KEY, JSON.stringify(DEVICE_PROFILE));
+
+  await deviceProfilesRef.child(DEVICE_ID).set({
+    ...DEVICE_PROFILE,
+    createdAt: firebase.database.ServerValue.TIMESTAMP
+  });
+
+  hideRegModal();
+  alert("Registro guardado. Ya puedes votar.");
+}
+
+// =====================================
+// VOTOS (1 SOLO VOTO POR NOMINACIÓN)
+// =====================================
+function getVotes(c,n,p){ return votes?.[c]?.[n]?.[p] || 0; }
+
+function subscribeVotes(){
+  votesRef.on("value", snap => {
+    votes = snap.val() || {};
     if (currentCategoryId && currentNominationId) {
       renderNomination(currentCategoryId, currentNominationId);
     }
-    renderSummaryPanel();
+    if (isAdmin) renderVotesDashboard();
   });
 }
 
-// =====================================
-// RESET GLOBAL DE VOTOS (ADMIN CON PIN)
-// =====================================
+async function hasVotedNomination(c,n){
+  return (await deviceStatusRef.child(`${DEVICE_ID}/${c}/${n}`).once("value")).exists();
+}
 
-function resetAllVotes() {
+async function addVote(c,n,p){
+  if (!DEVICE_PROFILE) { showRegModal(); return; }
+
+  // bloqueo: ya votó en esa nominación (no permite votar a otro candidato en la misma nominación)
+  if (await hasVotedNomination(c,n)) {
+    showBanner("✅ Ya votaste en esta nominación. Puedes votar en otras nominaciones.");
+    return;
+  }
+
+  // marca que votó en esa nominación (y a quién)
+  await deviceStatusRef.child(`${DEVICE_ID}/${c}/${n}`).set({
+    participantId: p,
+    votedAt: firebase.database.ServerValue.TIMESTAMP
+  });
+
+  // suma voto global
+  await votesRef.child(`${c}/${n}/${p}`).transaction(v => (v||0)+1);
+
+  showBanner("✅ Voto registrado.");
+  renderNomination(c,n);
+}
+
+// =====================================
+// DASHBOARD USUARIOS (ADMIN)
+// =====================================
+let liveProfiles = {};
+
+function subscribeProfilesForAdmin(){
+  deviceProfilesRef.on("value", snap => {
+    liveProfiles = snap.val() || {};
+    renderUsersDashboard();
+  });
+}
+
+function deleteUser(deviceId){
   if (!ensureAdmin()) return;
-
-  if (!confirm("¿Seguro que deseas reiniciar TODOS los votos (globalmente)?")) return;
-
-  // Borra los votos globales y también el registro de votos por dispositivo
-  const updates = {};
-  updates["/votes"] = {};
-  updates["/deviceVotes"] = {};
-
-  firebase
-    .database()
-    .ref()
-    .update(updates, (error) => {
-      if (error) {
-        console.error("Error al reiniciar votos:", error);
-        alert("Error al reiniciar los votos.");
-        return;
-      }
-
-      votes = {};
-      userVoteLocks = {};
-      saveUserVoteLocks();
-      updateAllVotedMessage();
-
-      if (currentCategoryId && currentNominationId) {
-        renderNomination(currentCategoryId, currentNominationId);
-      }
-      renderSummaryPanel();
-      alert("Todos los votos han sido reiniciados globalmente.");
-    });
+  if (!confirm("¿Eliminar este usuario del registro?")) return;
+  deviceProfilesRef.child(deviceId).remove();
 }
 
-// =====================================
-// INDICAR CUANDO YA VOTÓ EN TODAS LAS NOMINACIONES
-// =====================================
+function renderUsersDashboard(){
+  const body = document.getElementById("users-dashboard-body");
+  if (!body) return;
+  body.innerHTML = "";
 
-function updateAllVotedMessage() {
-  const msgEl = document.getElementById("all-voted-message");
-  if (!msgEl) return;
-
-  const allKeys = [];
-  categories.forEach((cat) => {
-    cat.nominations.forEach((nom) => {
-      allKeys.push(getNominationKey(cat.id, nom.id));
-    });
-  });
-
-  const allVoted =
-    allKeys.length > 0 && allKeys.every((k) => !!userVoteLocks[k]);
-
-  msgEl.style.display = allVoted ? "block" : "none";
-}
-
-// =====================================
-// REGISTRO DE VOTO (1 PARTICIPANTE POR NOMINACIÓN)
-// =====================================
-
-function addVote(categoryId, nominationId, participantId) {
-  // Solo puede elegir un participante por nominación
-  if (hasUserVotedNomination(categoryId, nominationId)) {
-    alert("Ya has votado en esta nominación. Solo puedes elegir un participante.");
-    return;
-  }
-
-  if (typeof votesRef === "undefined") {
-    console.error("votesRef no está definido.");
-    return;
-  }
-
-  // 🔒 BLOQUEO OPTIMISTA: marcamos de una vez que votó
-  markUserVotedNomination(categoryId, nominationId, participantId);
-
-  // Guardamos que ESTE dispositivo votó por este participante
-  const devPath = `${DEVICE_ID}/${categoryId}/${nominationId}/${participantId}`;
-  deviceVotesRef.child(devPath).set(true, (err) => {
-    if (err) {
-      console.error("Error al guardar voto por dispositivo:", err);
-    }
-  });
-
-  const ref = votesRef.child(`${categoryId}/${nominationId}/${participantId}`);
-
-  ref.transaction(
-    (current) => (current || 0) + 1,
-    (error, committed) => {
-      if (error || !committed) {
-        console.error("Error al registrar voto:", error);
-
-        // Revertimos bloqueo y registro de dispositivo
-        const key = getNominationKey(categoryId, nominationId);
-        delete userVoteLocks[key];
-        saveUserVoteLocks();
-        updateAllVotedMessage();
-
-        deviceVotesRef
-          .child(devPath)
-          .remove()
-          .catch(() => {});
-
-        alert("Ocurrió un problema al registrar tu voto. Intenta de nuevo.");
-      }
-    }
-  );
-}
-
-// =====================================
-// RESET SOLO DE ESTA SESIÓN / DISPOSITIVO
-// =====================================
-//
-// - Busca en deviceVotes/<DEVICE_ID> todos los votos que este dispositivo hizo.
-// - Por cada uno, RESTA 1 al contador global.
-// - Luego borra los registros de este dispositivo y desbloquea las nominaciones.
-//
-
-function resetSessionVotes() {
-  if (
-    !confirm(
-      "Esto eliminará los votos que este dispositivo ha aportado y te permitirá votar de nuevo.\n\n" +
-      "Los demás votos de otras personas NO se verán afectados.\n\n" +
-      "¿Deseas continuar?"
-    )
-  ) {
-    return;
-  }
-
-  const thisDeviceRef = deviceVotesRef.child(DEVICE_ID);
-
-  thisDeviceRef.once("value", (snapshot) => {
-    const data = snapshot.val();
-
-    if (!data) {
-      // No hay registro de votos de este dispositivo
-      userVoteLocks = {};
-      saveUserVoteLocks();
-      updateAllVotedMessage();
-      if (currentCategoryId && currentNominationId) {
-        renderNomination(currentCategoryId, currentNominationId);
-      }
-      alert("No había votos registrados para este dispositivo. Ya puedes votar de nuevo.");
-      return;
-    }
-
-    const ops = [];
-
-    // Recorremos: categoryId -> nominationId -> participantId
-    Object.keys(data).forEach((categoryId) => {
-      const nomObj = data[categoryId] || {};
-      Object.keys(nomObj).forEach((nominationId) => {
-        const partObj = nomObj[nominationId] || {};
-        Object.keys(partObj).forEach((participantId) => {
-          const voteRef = votesRef.child(`${categoryId}/${nominationId}/${participantId}`);
-
-          const p = new Promise((resolve) => {
-            voteRef.transaction(
-              (current) => {
-                const c = current || 0;
-                // Evitamos negativos
-                return c > 0 ? c - 1 : 0;
-              },
-              () => {
-                resolve();
-              }
-            );
-          });
-
-          ops.push(p);
-        });
-      });
-    });
-
-    Promise.all(ops)
-      .then(() => {
-        // Borramos el registro de este dispositivo
-        return thisDeviceRef.remove();
-      })
-      .then(() => {
-        // Limpiamos los bloqueos locales
-        userVoteLocks = {};
-        saveUserVoteLocks();
-        updateAllVotedMessage();
-
-        if (currentCategoryId && currentNominationId) {
-          renderNomination(currentCategoryId, currentNominationId);
-        }
-
-        alert("Se eliminaron los votos realizados desde este dispositivo. Ahora puedes votar de nuevo en todas las nominaciones.");
-      })
-      .catch((err) => {
-        console.error("Error al resetear votos de este dispositivo:", err);
-        alert("Hubo un problema al resetear tus votos. Intenta nuevamente.");
-      });
+  Object.entries(liveProfiles).forEach(([deviceId,p])=>{
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${p.firstName||""}</td>
+      <td>${p.lastName||""}</td>
+      <td>${p.cedula||""}</td>
+      <td>${deviceId}</td>
+      <td>${fmtDate(p.createdAt)}</td>
+      <td><button class="danger" style="padding:4px 8px;font-size:.75rem">Eliminar</button></td>
+    `;
+    tr.querySelector("button").onclick = ()=>deleteUser(deviceId);
+    body.appendChild(tr);
   });
 }
 
 // =====================================
-// RENDER DE CATEGORÍAS
+// DASHBOARD VOTOS (ADMIN) - ranking nominación actual
 // =====================================
+function renderVotesDashboard(){
+  const tbody = document.getElementById("votes-dashboard-body");
+  if (!tbody) return;
 
-function renderCategoriesList() {
-  const listEl = document.getElementById("category-list");
-  listEl.innerHTML = "";
+  const c = currentCategoryId, n = currentNominationId;
+  if (!c || !n) { tbody.innerHTML = ""; return; }
 
-  categories.forEach((cat) => {
-    const btn = document.createElement("button");
-    btn.className = "category-btn";
-    btn.dataset.id = cat.id;
+  const cat = categories.find(x=>x.id===c);
+  const nom = cat?.nominations?.find(x=>x.id===n);
+  if (!nom) { tbody.innerHTML = ""; return; }
 
-    let thumb = null;
-    if (
-      cat.nominations &&
-      cat.nominations[0] &&
-      cat.nominations[0].participants &&
-      cat.nominations[0].participants[0]
-    ) {
-      const pid = cat.nominations[0].participants[0];
-      const p = participantsById[pid];
-      if (p) thumb = p.photo;
-    }
+  const rows = nom.participants.map(pid => ({
+    pid,
+    p: participantsById[pid],
+    v: getVotes(c,n,pid)
+  })).filter(x=>x.p);
 
-    if (thumb) {
-      const img = document.createElement("img");
-      img.src = thumb;
-      img.alt = cat.name;
-      btn.appendChild(img);
-    }
+  rows.sort((a,b)=> b.v - a.v);
 
-    const span = document.createElement("span");
-    span.textContent = cat.name;
-    btn.appendChild(span);
-
-    btn.onclick = () => selectCategory(cat.id);
-
-    listEl.appendChild(btn);
-  });
-}
-
-function highlightActiveCategory() {
-  const buttons = document.querySelectorAll(".category-btn");
-  buttons.forEach((btn) => {
-    if (btn.dataset.id === currentCategoryId) {
-      btn.classList.add("active");
-    } else {
-      btn.classList.remove("active");
-    }
+  tbody.innerHTML = "";
+  rows.forEach((r,idx)=>{
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${idx+1}</td>
+      <td>
+        <div class="mini">
+          <img src="${r.p.photo}" alt="">
+          <div>${r.p.name}</div>
+        </div>
+      </td>
+      <td>${r.v}</td>
+    `;
+    tbody.appendChild(tr);
   });
 }
 
 // =====================================
-// NOMINACIONES
+// RESUMEN GENERAL (ADMIN) - líder por nominación
 // =====================================
-
-function populateNominationSelect(cat) {
-  const select = document.getElementById("nomination-select");
-  select.innerHTML = "";
-
-  cat.nominations.forEach((nom) => {
-    const opt = document.createElement("option");
-    opt.value = nom.id;
-    opt.textContent = nom.name;
-    select.appendChild(opt);
-  });
-
-  select.onchange = () => {
-    currentNominationId = select.value;
-    renderNomination(currentCategoryId, currentNominationId);
-  };
-}
-
-function renderNomination(categoryId, nominationId) {
-  const category = categories.find((c) => c.id === categoryId);
-  if (!category) return;
-
-  const nomination = category.nominations.find((n) => n.id === nominationId);
-  if (!nomination) return;
-
-  const titleEl = document.getElementById("category-title");
-  titleEl.textContent = `${category.name} – ${nomination.name}`;
-
-  const container = document.getElementById("nominees-container");
-  container.innerHTML = "";
-
-  const items = nomination.participants
-    .map((pid) => {
-      const p = participantsById[pid];
-      if (!p) return null;
-      const v = getVotes(categoryId, nominationId, pid);
-      return { pid, participant: p, votes: v };
-    })
-    .filter((item) => item !== null);
-
-  // Ordenar por votos (desc) y nombre
-  items.sort((a, b) => {
-    if (b.votes !== a.votes) return b.votes - a.votes;
-    return a.participant.name.localeCompare(b.participant.name);
-  });
-
-  const votedPid = getUserVoteInNomination(categoryId, nominationId);
-  const alreadyVotedNom = !!votedPid;
-
-  items.forEach(({ pid, participant: p, votes: v }, index) => {
-    const card = document.createElement("div");
-    card.className = "nominee-card";
-    if (index === 0 && v > 0) {
-      card.classList.add("top");
-    }
-
-    const img = document.createElement("img");
-    img.src = p.photo;
-    img.alt = p.name;
-
-    const nameEl = document.createElement("div");
-    nameEl.className = "nominee-name";
-    nameEl.textContent = p.name;
-
-    const votesEl = document.createElement("div");
-    votesEl.className = "nominee-votes";
-    votesEl.innerHTML = `Votos: <span>${v}</span>`;
-
-    const btn = document.createElement("button");
-    btn.className = "vote-btn";
-
-    if (!alreadyVotedNom) {
-      btn.textContent = "+1 voto";
-      btn.onclick = () => addVote(categoryId, nominationId, pid);
-    } else if (votedPid === pid) {
-      btn.textContent = "Ya votaste";
-      btn.disabled = true;
-    } else {
-      btn.textContent = "Voto no disponible";
-      btn.disabled = true;
-    }
-
-    card.appendChild(img);
-    card.appendChild(nameEl);
-    card.appendChild(votesEl);
-    card.appendChild(btn);
-
-    container.appendChild(card);
-  });
-
-  highlightActiveCategory();
-  updateAllVotedMessage();
-}
-
-// =====================================
-// RESUMEN GENERAL
-// =====================================
-
-function getLeaderForNomination(categoryId, nomination) {
-  let leader = null;
-
-  nomination.participants.forEach((pid) => {
-    const p = participantsById[pid];
-    if (!p) return;
-
-    const v = getVotes(categoryId, nomination.id, pid);
-    if (!leader || v > leader.votes) {
-      leader = { participant: p, votes: v };
-    }
-  });
-
-  return leader;
-}
-
-function renderSummaryPanel() {
+function renderSummaryLeaders(){
   const panel = document.getElementById("summary-panel");
-  if (!panel) return;
+  const wrap = document.getElementById("dash-summary");
+  if (!panel || !wrap) return;
 
   panel.innerHTML = "";
 
-  categories.forEach((cat) => {
-    cat.nominations.forEach((nom) => {
-      const leader = getLeaderForNomination(cat.id, nom);
+  categories.forEach(cat=>{
+    cat.nominations.forEach(nom=>{
+      let bestPid = null;
+      let bestVotes = -1;
 
+      nom.participants.forEach(pid=>{
+        const v = getVotes(cat.id, nom.id, pid);
+        if (v > bestVotes) { bestVotes = v; bestPid = pid; }
+      });
+
+      const winner = bestPid ? participantsById[bestPid] : null;
       const card = document.createElement("div");
       card.className = "summary-card";
-
-      const title = document.createElement("div");
-      title.className = "summary-title";
-      title.textContent = `${cat.name} – ${nom.name}`;
-
-      const content = document.createElement("div");
-      content.className = "summary-content";
-
-      if (leader && leader.participant) {
-        const img = document.createElement("img");
-        img.src = leader.participant.photo;
-        img.alt = leader.participant.name;
-
-        const info = document.createElement("div");
-        info.className = "summary-info";
-
-        const nameEl = document.createElement("div");
-        nameEl.className = "summary-name";
-        nameEl.textContent = leader.participant.name;
-
-        const votesEl = document.createElement("div");
-        votesEl.className = "summary-votes";
-        votesEl.innerHTML = `Votos: <strong>${leader.votes}</strong>`;
-
-        info.appendChild(nameEl);
-        info.appendChild(votesEl);
-        content.appendChild(img);
-        content.appendChild(info);
-      } else {
-        content.textContent = "Sin votos aún";
-      }
-
-      card.appendChild(title);
-      card.appendChild(content);
+      card.innerHTML = `
+        <div class="summary-title">${cat.name} – ${nom.name}</div>
+        <div class="summary-content">
+          ${winner ? `<img src="${winner.photo}" alt="">` : ``}
+          <div class="summary-info">
+            <div class="summary-name">${winner ? winner.name : "Sin votos"}</div>
+            <div class="summary-votes">Votos: ${Math.max(bestVotes,0)}</div>
+          </div>
+        </div>
+      `;
       panel.appendChild(card);
     });
   });
+
+  wrap.style.display = "block";
 }
 
 // =====================================
-// SELECCIÓN DE CATEGORÍA
+// UI: Categorías / Nominaciones / Tarjetas
 // =====================================
+function renderCategoriesList(){
+  categoryList.innerHTML = "";
+  categories.forEach(cat=>{
+    const b=document.createElement("button");
+    b.className="category-btn";
+    b.dataset.id = cat.id;
+    b.textContent=cat.name;
+    b.onclick=()=>selectCategory(cat.id);
+    categoryList.appendChild(b);
+  });
+}
 
-function selectCategory(categoryId) {
-  currentCategoryId = categoryId;
-  const cat = categories.find((c) => c.id === categoryId);
+function highlightActiveCategory(){
+  document.querySelectorAll(".category-btn").forEach(btn=>{
+    btn.classList.toggle("active", btn.dataset.id === currentCategoryId);
+  });
+}
+
+function populateNominationSelect(cat){
+  nominationSelect.innerHTML="";
+  cat.nominations.forEach(n=>{
+    const o=document.createElement("option");
+    o.value=n.id;
+    o.textContent=n.name;
+    nominationSelect.appendChild(o);
+  });
+
+  nominationSelect.onchange=()=>{
+    currentNominationId=nominationSelect.value;
+    renderNomination(currentCategoryId,currentNominationId);
+    if (isAdmin) renderVotesDashboard();
+  };
+}
+
+// Renderiza y (IMPORTANTE) ordena por votos (solo visualmente)
+async function renderNomination(c,n){
+  const cat=categories.find(x=>x.id===c);
+  if (!cat) return;
+  const nom=cat.nominations.find(x=>x.id===n);
+  if (!nom) return;
+
+  categoryTitle.textContent=`${cat.name} – ${nom.name}`;
+
+  const already = await hasVotedNomination(c,n);
+  already ? showBanner("✅ Ya votaste en esta nominación. Puedes votar en otras nominaciones.") : hideBanner();
+
+  // Ordena recuadros por votos (mayor a menor) — aunque el público NO vea el número
+  const ordered = [...nom.participants]
+    .map(pid => ({ pid, p: participantsById[pid], v: getVotes(c,n,pid) }))
+    .filter(x => x.p)
+    .sort((a,b)=> b.v - a.v);
+
+  nomineesContainer.innerHTML="";
+
+  ordered.forEach(({pid,p})=>{
+    const card=document.createElement("div");
+    card.className="nominee-card";
+    card.innerHTML = `
+      <img src="${p.photo}" alt="${p.name}">
+      <div class="nominee-name">${p.name}</div>
+    `;
+
+    const btn=document.createElement("button");
+    btn.className="vote-btn";
+    btn.textContent = already ? "Ya votaste" : "+1 voto";
+    btn.disabled = already;
+    btn.onclick = ()=> addVote(c,n,pid);
+
+    card.appendChild(btn);
+    nomineesContainer.appendChild(card);
+  });
+
+  highlightActiveCategory();
+}
+
+function selectCategory(id){
+  currentCategoryId=id;
+  const cat=categories.find(c=>c.id===id);
   if (!cat) return;
 
   populateNominationSelect(cat);
-  const select = document.getElementById("nomination-select");
-  currentNominationId =
-    select.value || (cat.nominations[0] && cat.nominations[0].id);
-
-  if (currentNominationId) {
-    renderNomination(categoryId, currentNominationId);
-  } else {
-    document.getElementById("nominees-container").innerHTML = "";
-  }
+  currentNominationId = nominationSelect.value || cat.nominations?.[0]?.id;
+  if (currentNominationId) renderNomination(id,currentNominationId);
 }
 
 // =====================================
-// INICIALIZACIÓN
+// ADMIN: BOTONES
 // =====================================
+function showOnlyDash(whichId){
+  const dashSummary = document.getElementById("dash-summary");
+  const dashVotes = document.getElementById("dash-votes");
+  const dashUsers = document.getElementById("dash-users");
 
-window.addEventListener("DOMContentLoaded", () => {
+  if (dashSummary) dashSummary.style.display = "none";
+  if (dashVotes) dashVotes.style.display = "none";
+  if (dashUsers) dashUsers.style.display = "none";
+
+  const el = document.getElementById(whichId);
+  if (el) el.style.display = "block";
+}
+
+async function resetAllVotesAdmin(){
+  if (!ensureAdmin()) return;
+  if (!confirm("¿Seguro que deseas reiniciar TODOS los votos?")) return;
+  await votesRef.set({});
+  await deviceStatusRef.set({});
+  alert("Votos reiniciados (global).");
+}
+
+// CSV simple de perfiles (admin)
+function exportProfilesCSV(){
+  if (!ensureAdmin()) return;
+  const rows = [["deviceId","firstName","lastName","cedula","createdAt"]];
+  Object.entries(liveProfiles || {}).forEach(([id,p])=>{
+    rows.push([id,p.firstName||"",p.lastName||"",p.cedula||"", p.createdAt ? new Date(p.createdAt).toISOString() : ""]);
+  });
+
+  const csv = rows.map(r => r.map(x => `"${String(x).replaceAll('"','""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "registro_votantes.csv";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// =====================================
+// INIT
+// =====================================
+window.addEventListener("DOMContentLoaded", async () => {
+  // DOM cache (ESTO era lo que te faltaba y rompía todo)
+  categoryList = document.getElementById("category-list");
+  nominationSelect = document.getElementById("nomination-select");
+  categoryTitle = document.getElementById("category-title");
+  nomineesContainer = document.getElementById("nominees-container");
+
+  regBackdrop = document.getElementById("reg-modal-backdrop");
+  regFirstname = document.getElementById("reg-firstname");
+  regLastname  = document.getElementById("reg-lastname");
+  regCedula    = document.getElementById("reg-cedula");
+  regSave      = document.getElementById("reg-save");
+  regError     = document.getElementById("reg-error");
+
+  regSave.onclick = saveDeviceProfileFromModal;
+
+  // Admin
+  document.getElementById("admin-login").onclick = ensureAdmin;
+  document.getElementById("btn-admin-reset-all").onclick = resetAllVotesAdmin;
+
+  document.getElementById("btn-admin-summary").onclick = () => {
+    if (!ensureAdmin()) return;
+    renderSummaryLeaders();
+    showOnlyDash("dash-summary");
+  };
+
+  document.getElementById("btn-admin-votes-dashboard").onclick = () => {
+    if (!ensureAdmin()) return;
+    renderVotesDashboard();
+    showOnlyDash("dash-votes");
+  };
+
+  document.getElementById("btn-admin-users-dashboard").onclick = () => {
+    if (!ensureAdmin()) return;
+    renderUsersDashboard();
+    showOnlyDash("dash-users");
+  };
+
+  document.getElementById("btn-admin-export-origins").onclick = exportProfilesCSV;
+
+  // UI
   renderCategoriesList();
+  if (categories?.length) selectCategory(categories[0].id);
 
-  const resetAllBtn = document.getElementById("reset-all");
-  if (resetAllBtn) {
-    resetAllBtn.addEventListener("click", resetAllVotes);
-  }
-
-  const resetSessionBtn = document.getElementById("reset-session");
-  if (resetSessionBtn) {
-    resetSessionBtn.addEventListener("click", resetSessionVotes);
-  }
-
-  const summaryAdminBtn = document.getElementById("show-summary-admin");
-  if (summaryAdminBtn) {
-    summaryAdminBtn.addEventListener("click", () => {
-      if (!ensureAdmin()) return;
-      const section = document.getElementById("summary-section");
-      if (section) {
-        section.style.display = "block";
-      }
-      renderSummaryPanel();
-    });
-  }
-
-  const adminLoginBtn = document.getElementById("admin-login");
-  if (adminLoginBtn) {
-    adminLoginBtn.addEventListener("click", () => {
-      ensureAdmin();
-    });
-  }
-
-  if (categories.length > 0) {
-    selectCategory(categories[0].id);
-  }
-
-  updateAllVotedMessage();
-  subscribeToVotes();
+  // Registro y votos
+  await ensureDeviceProfile();
+  subscribeVotes();
 });
