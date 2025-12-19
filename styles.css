@@ -299,3 +299,60 @@ section#content {
     padding: 1rem;
   }
 }
+
+
+/* ==============================
+   RESUMEN GENERAL (ADMIN) PRO
+   (WhatsApp-style profile pic)
+============================== */
+#summary-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.summary-card {
+  background: rgba(0,0,0,0.65);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.summary-title {
+  font-weight: 900;
+  font-size: 0.95rem;
+  margin-bottom: 10px;
+  opacity: 0.95;
+}
+
+.summary-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.summary-photo {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #ff0000;
+  flex: 0 0 auto;
+}
+
+.summary-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.summary-name {
+  font-weight: 900;
+  font-size: 1rem;
+}
+
+.summary-votes {
+  font-weight: 800;
+  opacity: 0.9;
+  font-size: 0.9rem;
+}
